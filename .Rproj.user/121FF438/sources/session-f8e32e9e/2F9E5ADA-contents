@@ -1,0 +1,15 @@
+## app.R ##
+library(shiny)
+library(shinydashboard)
+
+options(shiny.launch.browser = TRUE)
+
+ui <- dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(),
+  dashboardBody()
+)
+
+server <- function(input, output, session) { }
+
+shinyApp(ui, server)
