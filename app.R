@@ -7,6 +7,7 @@ library(dplyr)
 library(shinyjs)
 library(tidyr)
 
+gs4_auth(cache = ".secrets", email = "leodonnun@gmail.com")
 options(shiny.launch.browser = TRUE, shiny.autoreload = TRUE)
 
 # Define UI for application that draws a histogram
