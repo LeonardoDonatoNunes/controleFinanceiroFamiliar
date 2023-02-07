@@ -5,6 +5,7 @@ library(shinydashboard)
 library(shinyWidgets)
 library(dplyr)
 library(shinyjs)
+library(tidyr)
 
 options(shiny.launch.browser = TRUE, shiny.autoreload = TRUE)
 
@@ -135,7 +136,7 @@ server <- function(input, output) {
         modalButton('Fechar'), 
         disabled(actionButton('deletar_categoria', "Deletar")),
         disabled(actionButton('editar_categoria', "Editar"))
-        ),
+      ),
       size = 'l',
       tagList(
         reactableOutput('tabela_categorias')
@@ -193,15 +194,6 @@ server <- function(input, output) {
   })
   
   
-  output$visualizacoes_ui <- renderUI({
-    
-    tagList({
-      
-    })
-    
-  })
-  
-  
   observeEvent(input$deletar_categoria, {
     
     aux <-
@@ -218,8 +210,99 @@ server <- function(input, output) {
   })
   
   
+  # Output | visualizacoes_ui ---------------------------------------------
+  output$visualizacoes_ui <- renderUI({
+    
+    tagList(
+      fluidRow(
+        valueBoxOutput('renda_total'),
+        valueBoxOutput('gasto_total')
+      ),
+      column(
+        width = 4,
+        reactable::reactableOutput('tabela_gastos')
+      ),
+      column(8)
+    )
+    
+  })
   
   
+  # Render | tabela_gastos -------------------------------------------------
+  output$tabela_gastos <- renderReactable({
+    
+    if (!is.null(dados$pagamentos)) {
+      
+      reais = colFormat(currency = "BRL", separators = TRUE, locales = "pt-BR")
+      
+      dados$usuario %>% 
+        select(
+          usuario_id = id, 
+          nome_usuario = nome) %>% 
+        left_join(
+          dados$pagamentos,
+          by = "usuario_id"
+        ) %>% 
+        left_join(
+          dados$categoria_gasto %>% 
+            select(
+              categoria_gasto_id = id, 
+              nome_categoria = nome, 
+              usuario_id, 
+              usuario_categoria_id = usuario_id,
+              compartilhado),
+          by = "categoria_gasto_id"
+        ) %>% 
+        group_by(nome_usuario) %>% 
+        summarise(
+          "Gasto total" = sum(valor), 
+          "Gasto compartilhado" = sum(valor[compartilhado], na.rm = TRUE),
+          "Gasto particular" = sum(valor[!compartilhado], na.rm = TRUE)
+        ) %>% 
+        ungroup() %>% 
+        tidyr::pivot_longer(cols = -nome_usuario) %>% 
+        mutate(value = if_else(is.na(value), 0, value)) %>% 
+        tidyr::pivot_wider(names_from = nome_usuario, values_from = value) %>%
+        reactable::reactable(
+          pagination = F,
+          highlight = TRUE,
+          outlined  =  TRUE,
+          rowStyle = list(cursor = "pointer"),
+          defaultColDef = colDef(
+            align = "center",
+            headerStyle = list(background = "#f7f7f8")
+          ),
+          wrap = FALSE,
+          columns = list(
+            name = colDef(name = "Resumo dos gastos", minWidth = 150, maxWidth = 500),
+            Leonardo = colDef(format = reais),
+            Taise = colDef(format = reais)
+          )
+        )
+      
+    }
+    
+  })
+  
+  # Render | caixas de valor -------------------------------------------------
+  output$renda_total <- renderValueBox({
+    valueBox(value = reais(10000), subtitle = "Renda total", icon = icon("sack-dollar"))
+  })
+  
+  output$gasto_total <- renderValueBox({
+    
+    if (!is.null(dados$pagamentos)) {
+      
+      valor <- dados$pagamentos$valor %>% sum(na.rm = TRUE)
+      valueBox(value = reais(valor), subtitle = "Gasto total", icon = icon("money-bill-transfer"))
+      
+    }
+    
+  })
+  
+  
+  
+  # Funções -----------------------------------------------------------------
   insert_nova_categoria <- function(nome, gasto_fixo, compartilhado, gasto_exclusivo_usuario, usuario) {
     
     url <- "https://docs.google.com/spreadsheets/d/1pD0WOSpT5kCzS_-17nsz0zFU9iHNeTQKs27H6Tg_a9w/edit?usp=sharing"
@@ -238,7 +321,7 @@ server <- function(input, output) {
         gasto_fixo = gasto_fixo, 
         compartilhado = compartilhado, 
         gasto_exclusivo_usuario = gasto_exclusivo_usuario, 
-        usuario_id = usuario)
+        usuario_id = as.numeric(usuario))
     
     googlesheets4::sheet_append(data = dados, ss = url, sheet = sheet)
     
@@ -247,6 +330,8 @@ server <- function(input, output) {
     return(aux)
     
   }
+  
+  reais <- scales::number_format(accuracy = 0.01,prefix = 'R$', big.mark = ".", decimal.mark = ",")
   
   
 }
