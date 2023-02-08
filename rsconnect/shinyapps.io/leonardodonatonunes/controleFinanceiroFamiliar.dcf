@@ -5,9 +5,9 @@ account: leonardodonatonunes
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 8241120
-bundleId: 6817599
+bundleId: 6820547
 url: https://leonardodonatonunes.shinyapps.io/controleFinanceiroFamiliar/
-when: 1675738578.51549
-lastSyncTime: 1675738578.51551
+when: 1675797051.31267
+lastSyncTime: 1675797051.31269
 asMultiple: FALSE
 asStatic: FALSE

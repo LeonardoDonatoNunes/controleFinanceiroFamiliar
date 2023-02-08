@@ -1,3 +1,46 @@
 .modal-content {
   border-radius: 5px;
 }
+
+.skin-yellow .main-header .navbar .sidebar-toggle {
+    color: #000;
+}
+
+#dropdown_upmenu_ui {
+    height: 51px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+#dropdown_upmenu_ui .selectize-input {
+    text-align: right;
+    padding-right: 32px;
+    background-color: transparent;
+    border: 0px;
+    color: #000;
+    font-weight: bold;
+    padding-top: 15px;
+    box-shadow: none;
+}
+
+#dropdown_upmenu_ui .selectize-input:after {
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid #000;
+    position: absolute;
+    top: 60%;
+    right: 12px;
+    content: "";
+    z-index: 98;
+}
+
+.seletor_usuario div.item:before {
+  content: "👤 ";
+}
+
+.seletor_mes div.item:before {
+  content: "📅 ";
+}
+

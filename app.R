@@ -6,23 +6,51 @@ library(shinyWidgets)
 library(dplyr)
 library(shinyjs)
 library(tidyr)
+library(lubridate)
+library(stringr)
 
 gs4_auth(cache = ".secrets", email = "leodonnun@gmail.com")
 options(shiny.launch.browser = TRUE, shiny.autoreload = TRUE)
 
 # Define UI for application that draws a histogram
 
-ui <- dashboardPage(skin = "yellow",
-                    dashboardHeader(title = "Controle Financeiro"),
-                    dashboardSidebar(
-                      uiOutput('seletores_ui')
-                    ),
-                    dashboardBody(
-                      tags$head(
-                        tags$link(rel = "stylesheet", type = "text/css", href = "estilo.css")    ),
-                      shinyjs::useShinyjs(),
-                      uiOutput('visualizacoes_ui')
-                    )
+ui <- dashboardPage(
+  skin = "yellow",
+  
+  dashboardHeader(
+    title = span(tags$img(src="logo.png", height="90%")),
+    dropdownMenuOutput('dropdown_upmenu_ui')
+  ),
+  
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem("Painel", tabName = 'painel', icon = icon("chart-line")),
+      menuItem("Registrar despesa", tabName = 'despesa', icon = icon("money-bill-transfer")),
+      menuItem(
+        "Cadastro", 
+        tabName = 'cadastro', 
+        icon = icon("table"),
+        startExpanded = TRUE,
+        menuSubItem('Usuário', tabName = 'usuario'),
+        menuSubItem('Receita', tabName = 'receita'),
+        menuSubItem('Categoria de despesa', tabName = 'gasto')
+      )
+    )
+  ),
+  
+  dashboardBody(
+    tags$head(
+      tags$link(rel = "stylesheet", type = "text/css", href = "estilo.css"),
+      tags$link(rel = "shortcut icon", href = "favicon.ico")
+    ),
+    shinyjs::useShinyjs(),
+    
+    tabItems(
+      tabItem('painel', uiOutput('visualizacoes_ui')),
+      tabItem('despesa', uiOutput('seletores_ui')),
+      tabItem('cadastro')
+    )
+  )
 )
 
 
@@ -30,13 +58,87 @@ ui <- dashboardPage(skin = "yellow",
 server <- function(input, output) {
   
   dados <- reactiveValues()
+  url <- "https://docs.google.com/spreadsheets/d/1pD0WOSpT5kCzS_-17nsz0zFU9iHNeTQKs27H6Tg_a9w/edit?usp=sharing"
+  sheet_despesa <- "pagamentos"
+  sheet_usuario <- "usuario"
+  sheet_categoria_gasto <- "categoria_gasto"
+  
+  
+  # Render | dropdown_upmenu_ui ------------------------------------------
+  output$dropdown_upmenu_ui <- renderUI({
+    
+    dados$usuario <- googlesheets4::read_sheet(url, sheet_usuario)
+    dados$categoria_gasto <- googlesheets4::read_sheet(url, sheet_categoria_gasto)
+    dados$pagamentos <- googlesheets4::read_sheet(url, sheet_despesa)
+    
+    vct_usuario <- NULL
+    if (!is.null(dados$usuario)) {
+      vct_usuario <- dados$usuario$id %>% setNames(dados$usuario$nome)
+    }
+    
+    vct_mes <- 1:12 %>% setNames(stringr::str_to_title(lubridate::month(1:12, label = TRUE, abbr = FALSE)))
+    mes_sel <- lubridate::month(Sys.Date()- months(1))
+    vct_ano <- dados$pagamentos$ano_referencia %>% unique()
+    ano_sel <- year(Sys.Date()- months(1))
+    
+    
+    
+    dropdownClass <- paste0("dropdown ", 'notifications', "-menu")
+    
+    tagList(
+      tags$li(
+        class = dropdownClass,
+        style = 'height:51px;',
+        tags$div(class = 'seletor_usuario',
+                 selectInput(
+                   'usuario_sel',
+                   label = NULL,
+                   choices = vct_usuario,
+                   width = 'auto'
+                 )
+        ),
+        tags$div(class = 'seletor_mes',
+                 selectInput(
+                   'mes_sel',
+                   label = NULL,
+                   choices = vct_mes,
+                   width = 'auto',
+                   selected = mes_sel
+                 )
+        ),
+        tags$div(class = 'seletor_ano',
+                 selectInput(
+                   'ano_sel',
+                   label = NULL,
+                   choices = vct_ano,
+                   width = 'auto',
+                   selected = ano_sel
+                 )
+        )
+      )
+    )
+    
+    
+  })
+  
+  
+  # Observe | ano_sel
+  observeEvent(input$ano_sel, {
+    
+    meses <-
+      dados$pagamentos %>% 
+      filter(ano_referencia == input$ano_sel) %>% 
+      distinct(mes_referencia) %>% 
+      pull(mes_referencia)
+    
+    vct_mes <- meses %>% setNames(str_to_title(lubridate::month(meses, label = TRUE, abbr = FALSE)))
+    
+    updateSelectInput(inputId = 'mes_sel', choices = vct_mes)
+    
+  })
+  
   
   output$seletores_ui <- renderUI({
-    
-    dados$pagamentos <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1pD0WOSpT5kCzS_-17nsz0zFU9iHNeTQKs27H6Tg_a9w/edit?usp=sharing", sheet = 'pagamentos')
-    dados$usuario <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1pD0WOSpT5kCzS_-17nsz0zFU9iHNeTQKs27H6Tg_a9w/edit?usp=sharing", sheet = 'usuario')
-    dados$categoria_gasto <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1pD0WOSpT5kCzS_-17nsz0zFU9iHNeTQKs27H6Tg_a9w/edit?usp=sharing", sheet = 'categoria_gasto')
-    
     #dados$usuario <- dados$usuario %>% mutate(id = as.numeric(id))
     
     fluidPage(
@@ -44,6 +146,7 @@ server <- function(input, output) {
     )
     
   })
+  
   
   output$seletores_sidebar_ui <- renderUI({
     
@@ -55,23 +158,48 @@ server <- function(input, output) {
       
       dados$categoria_gasto <- isolate(dados$categoria_gasto %>% arrange(nome))
       
-      vct_usuario <- dados$usuario$id %>% setNames(dados$usuario$nome)
       vct_categoria_gastos <- dados$categoria_gasto$id %>% setNames(dados$categoria_gasto$nome)
       
       
       tagList(
-        selectInput('usuario_sel', "Usuário", choices = vct_usuario),
-        actionLink('cadastrar_receita', "Cadastrar receita", icon = icon("hand-holding-dollar")),
-        selectInput('categoria_gasto_sel', "Categoria", choices = vct_categoria_gastos),
-        actionLink('nova_categoria_gasto', "Nova categoria de gasto", icon = icon("square-plus")),
-        currencyInput('valor', "Valor", value = 0, format = "Brazilian"),
-        dateInput('data', label = 'Data'),
-        actionButton('salvar_gasto', "Salvar", icon = icon("cloud-arrow-up"))
+        column(4,
+               selectInput('categoria_gasto_sel', "Categoria", choices = vct_categoria_gastos),
+               currencyInput('valor', "Valor", value = 0, format = "Brazilian"),
+               dateInput('data', label = 'Data'),
+               actionButton('salvar_gasto', "Salvar", icon = icon("cloud-arrow-up"))
+        ),
+        column(8,
+               reactableOutput('tabela_pagamentos')
+        )
       )
       
     }
     
   })
+  
+  output$tabela_pagamentos <- renderReactable({
+    dados$pagamentos %>% 
+      reactable()
+  })
+  
+  # Observe | salvar_gasto ----------------------------------------------
+  observeEvent(input$salvar_gasto, {
+    
+    dados$pagamentos <-
+      insert_nova_despesa(
+        url = url, 
+        sheet = sheet_despesa, 
+        data = input$data,
+        mes_referencia = input$mes_sel,
+        ano_referencia = input$ano_sel, 
+        categoria_gasto_id = input$categoria_gasto_sel,
+        usuario_id = input$usuario_sel, 
+        valor = input$valor 
+      )
+    
+    
+  })
+  
   
   observeEvent(input$cadastrar_receita, {
     showModal(modalDialog(
@@ -331,6 +459,34 @@ server <- function(input, output) {
     return(aux)
     
   }
+  
+  insert_nova_despesa <- function(url, sheet, data, mes_referencia, ano_referencia, categoria_gasto_id, usuario_id, valor) {
+    
+    aux <- googlesheets4::read_sheet(
+      ss = url,
+      sheet = sheet)
+    
+    id <- (aux$id %>% max()) + 1
+    
+    dados <-
+      data.frame(
+        id	= id,
+        data	= data,
+        mes_referencia	= as.numeric(mes_referencia),
+        ano_referencia = as.numeric(ano_referencia),	
+        categoria_gasto_id = as.numeric(categoria_gasto_id),	
+        usuario_id = as.numeric(usuario_id),	
+        valor = as.numeric(valor)
+      )
+    
+    googlesheets4::sheet_append(data = dados, ss = url, sheet = sheet)
+    
+    aux <- aux %>% dplyr::add_row(dados)
+    
+    return(aux)
+    
+  }
+  
   
   reais <- scales::number_format(accuracy = 0.01,prefix = 'R$', big.mark = ".", decimal.mark = ",")
   
